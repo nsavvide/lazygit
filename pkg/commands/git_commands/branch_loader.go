@@ -334,6 +334,10 @@ func (self *BranchLoader) GetBaseBranch(branch *models.Branch, mainBranches *Mai
 // a full ref name, or "" if there is no candidate. Needs git 2.41 for
 // %(ahead-behind); errors on older versions.
 func (self *BranchLoader) GetParentBranch(branch *models.Branch, mainBranches *MainBranches) (string, error) {
+	if parent := self.createdFromBranch(branch); parent != "" {
+		return parent, nil
+	}
+
 	ref := branch.FullRefName()
 	output, err := self.cmd.New(
 		NewGitCmd("for-each-ref").
@@ -346,6 +350,53 @@ func (self *BranchLoader) GetParentBranch(branch *models.Branch, mainBranches *M
 		return "", err
 	}
 	return pickParentBranch(output, branch.Name, mainBranches.Get()), nil
+}
+
+// The branch's oldest reflog entry records what it was created from (e.g.
+// "branch: Created from origin/feat/x"). This is exact, unlike guessing from
+// the commit graph, which goes wrong when the branch has been merged into an
+// integration branch like test. A local source is replaced by its upstream so
+// that we rebase onto the latest pushed state. Returns a full ref name, or ""
+// if the reflog has expired or names the branch itself or its upstream.
+func (self *BranchLoader) createdFromBranch(branch *models.Branch) string {
+	reflog, err := self.cmd.New(
+		NewGitCmd("reflog").Arg("show", "--format=%gs", branch.FullRefName()).ToArgv(),
+	).DontLog().RunWithOutput()
+	if err != nil {
+		return ""
+	}
+	source := parseCreatedFrom(reflog)
+	if source == "" {
+		return ""
+	}
+
+	resolve := func(rev string) string {
+		output, err := self.cmd.New(
+			NewGitCmd("rev-parse").Arg("--symbolic-full-name", rev).ToArgv(),
+		).DontLog().RunWithOutput()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(output)
+	}
+	parent := resolve(source + "@{u}")
+	if parent == "" {
+		parent = resolve(source)
+	}
+	if !strings.HasPrefix(parent, "refs/heads/") && !strings.HasPrefix(parent, "refs/remotes/") ||
+		parent == branch.FullRefName() || strings.HasSuffix(parent, "/"+branch.Name) {
+		return ""
+	}
+	return parent
+}
+
+func parseCreatedFrom(reflog string) string {
+	lines := strings.Split(strings.TrimSpace(reflog), "\n")
+	source, found := strings.CutPrefix(lines[len(lines)-1], "branch: Created from ")
+	if !found || source == "HEAD" {
+		return ""
+	}
+	return source
 }
 
 // Each line of output is "<refname> <ahead> <behind>" relative to the branch.

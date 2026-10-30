@@ -422,3 +422,11 @@ func TestPickParentBranch(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCreatedFrom(t *testing.T) {
+	assert.Equal(t, "origin/feat/x",
+		parseCreatedFrom("commit: Do things\nbranch: Created from origin/feat/x\n"))
+	assert.Equal(t, "", parseCreatedFrom("branch: Created from HEAD\n"))
+	assert.Equal(t, "", parseCreatedFrom("branch: renamed refs/heads/a to refs/heads/b\n"))
+	assert.Equal(t, "", parseCreatedFrom(""))
+}
