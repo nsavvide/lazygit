@@ -1632,7 +1632,7 @@ func EnglishTranslationSet() *TranslationSet {
 		InteractiveRebase:                    "Interactive rebase onto '{{.ref}}'",
 		RebaseOntoBaseBranch:                 "Rebase onto base branch ({{.baseBranch}})",
 		InteractiveRebaseTooltip:             "Begin an interactive rebase with a break at the start, so you can update the TODO commits before continuing.",
-		RebaseOntoBaseBranchTooltip:          "Rebase the checked out branch onto its base branch (i.e. the closest main branch).",
+		RebaseOntoBaseBranchTooltip:          "Rebase the checked out branch onto its parent branch (the branch it is closest to, preferring remote and main branches on ties).",
 		MustSelectTodoCommits:                "When rebasing, this action only works on a selection of TODO commits.",
 		FwdNoUpstream:                        "Cannot fast-forward a branch with no upstream",
 		FwdNoLocalUpstream:                   "Cannot fast-forward a branch whose remote is not registered locally",

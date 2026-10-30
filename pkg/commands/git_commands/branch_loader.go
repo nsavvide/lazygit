@@ -329,6 +329,58 @@ func (self *BranchLoader) GetBaseBranch(branch *models.Branch, mainBranches *Mai
 	return split[0], nil
 }
 
+// Find the branch that the given branch is most directly based on, which may be
+// another feature branch (stacked branches) rather than a main branch. Returns
+// a full ref name, or "" if there is no candidate. Needs git 2.41 for
+// %(ahead-behind); errors on older versions.
+func (self *BranchLoader) GetParentBranch(branch *models.Branch, mainBranches *MainBranches) (string, error) {
+	ref := branch.FullRefName()
+	output, err := self.cmd.New(
+		NewGitCmd("for-each-ref").
+			Arg("--no-contains", ref).
+			Arg("--format=%(refname) %(ahead-behind:"+ref+")").
+			Arg("refs/heads", "refs/remotes").
+			ToArgv(),
+	).DontLog().RunWithOutput()
+	if err != nil {
+		return "", err
+	}
+	return pickParentBranch(output, branch.Name, mainBranches.Get()), nil
+}
+
+// Each line of output is "<refname> <ahead> <behind>" relative to the branch.
+// "behind" counts the branch's commits missing from the candidate, so the
+// smallest wins. Ties go to main branches, then remote branches, then local.
+func pickParentBranch(output string, branchName string, mainBranches []string) string {
+	best, bestBehind, bestRank := "", 0, 0
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			continue
+		}
+		refName := fields[0]
+		// skip the branch's own remote counterparts and symbolic refs like origin/HEAD
+		if strings.HasPrefix(refName, "refs/remotes/") &&
+			(strings.HasSuffix(refName, "/"+branchName) || strings.HasSuffix(refName, "/HEAD")) {
+			continue
+		}
+		behind, err := strconv.Atoi(fields[2])
+		if err != nil {
+			continue
+		}
+		rank := 2
+		if lo.Contains(mainBranches, refName) {
+			rank = 0
+		} else if strings.HasPrefix(refName, "refs/remotes/") {
+			rank = 1
+		}
+		if best == "" || behind < bestBehind || (behind == bestBehind && rank < bestRank) {
+			best, bestBehind, bestRank = refName, behind, rank
+		}
+	}
+	return best
+}
+
 // Returns the branches, along with the tip of each of them, keyed by full ref
 // name
 func (self *BranchLoader) obtainBranches() ([]*models.Branch, map[string]refTip, error) {
