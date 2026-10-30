@@ -329,33 +329,20 @@ func (self *BranchLoader) GetBaseBranch(branch *models.Branch, mainBranches *Mai
 	return split[0], nil
 }
 
-// Find the branch that the given branch is most directly based on, which may be
-// another feature branch (stacked branches) rather than a main branch. Returns
-// a full ref name, or "" if there is no candidate. Needs git 2.41 for
-// %(ahead-behind); errors on older versions.
-func (self *BranchLoader) GetParentBranch(branch *models.Branch, mainBranches *MainBranches) (string, error) {
+// Find the branch that the given branch was created from, which may be another
+// feature branch (stacked branches). If git no longer knows, use the first
+// configured main branch: guessing from the commit graph picks integration
+// branches like test that the branch has been merged into. Returns a full ref
+// name, or "" if neither exists.
+func (self *BranchLoader) GetParentBranch(branch *models.Branch, mainBranches *MainBranches) string {
 	if parent := self.createdFromBranch(branch); parent != "" {
-		return parent, nil
+		return parent
 	}
-
-	ref := branch.FullRefName()
-	output, err := self.cmd.New(
-		NewGitCmd("for-each-ref").
-			Arg("--no-contains", ref).
-			Arg("--format=%(refname) %(ahead-behind:"+ref+")").
-			Arg("refs/heads", "refs/remotes").
-			ToArgv(),
-	).DontLog().RunWithOutput()
-	if err != nil {
-		return "", err
-	}
-	return pickParentBranch(output, branch.Name, mainBranches.Get()), nil
+	return lo.FirstOrEmpty(mainBranches.Get())
 }
 
 // The branch's oldest reflog entry records what it was created from (e.g.
-// "branch: Created from origin/feat/x"). This is exact, unlike guessing from
-// the commit graph, which goes wrong when the branch has been merged into an
-// integration branch like test. A local source is replaced by its upstream so
+// "branch: Created from origin/feat/x"). A local source is replaced by its upstream so
 // that we rebase onto the latest pushed state. Returns a full ref name, or ""
 // if the reflog has expired or names the branch itself or its upstream.
 func (self *BranchLoader) createdFromBranch(branch *models.Branch) string {
@@ -397,39 +384,6 @@ func parseCreatedFrom(reflog string) string {
 		return ""
 	}
 	return source
-}
-
-// Each line of output is "<refname> <ahead> <behind>" relative to the branch.
-// "behind" counts the branch's commits missing from the candidate, so the
-// smallest wins. Ties go to main branches, then remote branches, then local.
-func pickParentBranch(output string, branchName string, mainBranches []string) string {
-	best, bestBehind, bestRank := "", 0, 0
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 3 {
-			continue
-		}
-		refName := fields[0]
-		// skip the branch's own remote counterparts and symbolic refs like origin/HEAD
-		if strings.HasPrefix(refName, "refs/remotes/") &&
-			(strings.HasSuffix(refName, "/"+branchName) || strings.HasSuffix(refName, "/HEAD")) {
-			continue
-		}
-		behind, err := strconv.Atoi(fields[2])
-		if err != nil {
-			continue
-		}
-		rank := 2
-		if lo.Contains(mainBranches, refName) {
-			rank = 0
-		} else if strings.HasPrefix(refName, "refs/remotes/") {
-			rank = 1
-		}
-		if best == "" || behind < bestBehind || (behind == bestBehind && rank < bestRank) {
-			best, bestBehind, bestRank = refName, behind, rank
-		}
-	}
-	return best
 }
 
 // Returns the branches, along with the tip of each of them, keyed by full ref

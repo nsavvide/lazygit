@@ -373,56 +373,6 @@ func TestCheckForRewrittenUpstreams(t *testing.T) {
 	assert.False(t, failing.UpstreamRewritten.Load(), "a failed check should not claim anything")
 }
 
-func TestPickParentBranch(t *testing.T) {
-	mainBranches := []string{"refs/remotes/origin/master"}
-	scenarios := []struct {
-		testName string
-		output   string
-		expected string
-	}{
-		{
-			testName: "no candidates",
-			output:   "",
-			expected: "",
-		},
-		{
-			testName: "stacked branch picks its closest parent over master",
-			output: "refs/heads/master 0 4\n" +
-				"refs/remotes/origin/master 1 4\n" +
-				"refs/remotes/origin/feat-a 1 2\n" +
-				"refs/heads/other 1 4\n",
-			expected: "refs/remotes/origin/feat-a",
-		},
-		{
-			testName: "ties prefer main branches, then remote, then local branches",
-			output: "refs/heads/feat-a 0 2\n" +
-				"refs/remotes/origin/feat-a 0 2\n" +
-				"refs/heads/other 1 1\n" +
-				"refs/remotes/origin/master 1 1\n",
-			expected: "refs/remotes/origin/master",
-		},
-		{
-			testName: "remote beats local on a tie",
-			output: "refs/heads/feat-a 0 2\n" +
-				"refs/remotes/origin/feat-a 0 2\n",
-			expected: "refs/remotes/origin/feat-a",
-		},
-		{
-			testName: "own upstream and symbolic refs are skipped",
-			output: "refs/remotes/origin/HEAD 0 0\n" +
-				"refs/remotes/origin/feat-b 0 1\n" +
-				"refs/remotes/origin/master 0 3\n",
-			expected: "refs/remotes/origin/master",
-		},
-	}
-
-	for _, s := range scenarios {
-		t.Run(s.testName, func(t *testing.T) {
-			assert.Equal(t, s.expected, pickParentBranch(s.output, "feat-b", mainBranches))
-		})
-	}
-}
-
 func TestParseCreatedFrom(t *testing.T) {
 	assert.Equal(t, "origin/feat/x",
 		parseCreatedFrom("commit: Do things\nbranch: Created from origin/feat/x\n"))

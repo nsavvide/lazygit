@@ -491,15 +491,7 @@ func (self *MergeAndRebaseHelper) RebaseOntoRef(ref string) error {
 		disabledReason = &types.DisabledReason{Text: self.c.Tr.CantRebaseOntoSelf}
 	}
 
-	// Prefer the closest parent branch (works for stacked branches); fall back
-	// to the closest main branch, e.g. on git < 2.41.
-	baseBranch, err := self.c.Git().Loaders.BranchLoader.GetParentBranch(checkedOutBranch, self.c.Model().MainBranches)
-	if err != nil || baseBranch == "" {
-		baseBranch, err = self.c.Git().Loaders.BranchLoader.GetBaseBranch(checkedOutBranch, self.c.Model().MainBranches)
-		if err != nil {
-			return err
-		}
-	}
+	baseBranch := self.c.Git().Loaders.BranchLoader.GetParentBranch(checkedOutBranch, self.c.Model().MainBranches)
 	if baseBranch == "" {
 		baseBranch = self.c.Tr.CouldNotDetermineBaseBranch
 		baseBranchDisabledReason = &types.DisabledReason{Text: self.c.Tr.CouldNotDetermineBaseBranch}
