@@ -37,7 +37,7 @@ func (self *RefsHelper) CheckoutRef(ref string, options types.CheckoutRefOptions
 		waitingStatus = self.c.Tr.CheckingOutStatus
 	}
 
-	cmdOptions := git_commands.CheckoutOptions{Force: false, EnvVars: options.EnvVars}
+	cmdOptions := git_commands.CheckoutOptions{Force: false, IgnoreOtherWorktrees: options.IgnoreOtherWorktrees, EnvVars: options.EnvVars}
 
 	refresh := func() {
 		// loading a heap of commits is slow so we limit them whenever doing a reset

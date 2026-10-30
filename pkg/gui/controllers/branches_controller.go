@@ -410,13 +410,17 @@ func (self *BranchesController) press(selectedBranch *models.Branch) error {
 		return errors.New(self.c.Tr.AlreadyCheckedOutBranch)
 	}
 
+	// Main branches (master, test, ...) are only used for deploying/inspecting,
+	// so allow checking them out in several worktrees at once instead of
+	// switching to the worktree that has them.
+	isMainBranch := lo.Contains(self.c.UserConfig().Git.MainBranches, selectedBranch.Name)
 	worktreeForRef, ok := self.worktreeForBranch(selectedBranch)
-	if ok && !worktreeForRef.IsCurrent {
+	if ok && !worktreeForRef.IsCurrent && !isMainBranch {
 		return self.promptToCheckoutWorktree(worktreeForRef)
 	}
 
 	self.c.LogAction(self.c.Tr.Actions.CheckoutBranch)
-	return self.c.Helpers().Refs.CheckoutRef(selectedBranch.Name, types.CheckoutRefOptions{})
+	return self.c.Helpers().Refs.CheckoutRef(selectedBranch.Name, types.CheckoutRefOptions{IgnoreOtherWorktrees: isMainBranch})
 }
 
 func (self *BranchesController) notPulling() *types.DisabledReason {

@@ -147,13 +147,15 @@ func (self *BranchCommands) LocalDelete(branches []string, force bool) error {
 
 // Checkout checks out a branch (or commit), with --force if you set the force arg to true
 type CheckoutOptions struct {
-	Force   bool
-	EnvVars []string
+	Force                bool
+	IgnoreOtherWorktrees bool
+	EnvVars              []string
 }
 
 func (self *BranchCommands) Checkout(branch string, options CheckoutOptions) error {
 	cmdArgs := NewGitCmd("checkout").
 		ArgIf(options.Force, "--force").
+		ArgIf(options.IgnoreOtherWorktrees, "--ignore-other-worktrees").
 		Arg(branch).
 		ToArgv()
 
