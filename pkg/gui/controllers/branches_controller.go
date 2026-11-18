@@ -526,7 +526,22 @@ func (self *BranchesController) checkoutByName() error {
 	self.c.Prompt(types.PromptOpts{
 		Title:               self.c.Tr.BranchName + ":",
 		FindSuggestionsFunc: self.c.Helpers().Suggestions.GetRefsSuggestionsFunc(),
-		HandleConfirm:       self.checkoutRefByName,
+		HandleConfirm: func(response string) error {
+			// Merge/rebase work on the ref directly, so a branch held by another
+			// worktree can be used without checking it out first.
+			return self.c.Menu(types.CreateMenuOptions{
+				Title: response,
+				Items: []*types.MenuItem{
+					{Label: self.c.Tr.Checkout, Keys: menuKey('c'), OnPress: func() error { return self.checkoutRefByName(response) }},
+					{Label: self.c.Tr.Merge, Keys: menuKey('m'), OnPress: func() error {
+						return self.c.Helpers().MergeAndRebase.MergeRefIntoCheckedOutBranch(response)
+					}},
+					{Label: self.c.Tr.RebaseBranch, Keys: menuKey('r'), OnPress: func() error {
+						return self.c.Helpers().MergeAndRebase.RebaseOntoRef(response)
+					}},
+				},
+			})
+		},
 	},
 	)
 

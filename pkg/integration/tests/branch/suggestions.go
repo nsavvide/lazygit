@@ -33,6 +33,11 @@ var Suggestions = NewIntegrationTest(NewIntegrationTestArgs{
 			SuggestionTopLines(Contains("branch-to-checkout")).
 			ConfirmFirstSuggestion()
 
+		t.ExpectPopup().Menu().
+			Title(Equals("branch-to-checkout")).
+			Select(Contains("Checkout")).
+			Confirm()
+
 		t.Git().CurrentBranchName("branch-to-checkout")
 	},
 })
