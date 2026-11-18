@@ -526,30 +526,32 @@ func (self *BranchesController) checkoutByName() error {
 	self.c.Prompt(types.PromptOpts{
 		Title:               self.c.Tr.BranchName + ":",
 		FindSuggestionsFunc: self.c.Helpers().Suggestions.GetRefsSuggestionsFunc(),
-		HandleConfirm: func(response string) error {
-			self.c.LogAction("Checkout branch")
-			_, branchName, found := self.c.Helpers().Refs.ParseRemoteBranchName(response)
-			if found {
-				return self.c.Helpers().Refs.CheckoutRemoteBranch(response, branchName)
-			}
-			return self.c.Helpers().Refs.CheckoutRef(response, types.CheckoutRefOptions{
-				OnRefNotFound: func(ref string) error {
-					self.c.Confirm(types.ConfirmOpts{
-						Title:  self.c.Tr.BranchNotFoundTitle,
-						Prompt: fmt.Sprintf("%s %s%s", self.c.Tr.BranchNotFoundPrompt, ref, "?"),
-						HandleConfirm: func() error {
-							return self.createNewBranchWithName(ref)
-						},
-					})
-
-					return nil
-				},
-			})
-		},
+		HandleConfirm:       self.checkoutRefByName,
 	},
 	)
 
 	return nil
+}
+
+func (self *BranchesController) checkoutRefByName(response string) error {
+	self.c.LogAction("Checkout branch")
+	_, branchName, found := self.c.Helpers().Refs.ParseRemoteBranchName(response)
+	if found {
+		return self.c.Helpers().Refs.CheckoutRemoteBranch(response, branchName)
+	}
+	return self.c.Helpers().Refs.CheckoutRef(response, types.CheckoutRefOptions{
+		OnRefNotFound: func(ref string) error {
+			self.c.Confirm(types.ConfirmOpts{
+				Title:  self.c.Tr.BranchNotFoundTitle,
+				Prompt: fmt.Sprintf("%s %s%s", self.c.Tr.BranchNotFoundPrompt, ref, "?"),
+				HandleConfirm: func() error {
+					return self.createNewBranchWithName(ref)
+				},
+			})
+
+			return nil
+		},
+	})
 }
 
 func (self *BranchesController) createNewBranchWithName(newBranchName string) error {
